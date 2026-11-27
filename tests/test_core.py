@@ -9,6 +9,8 @@ def test_catalog_lookup_and_recommendations():
     names = {item.name for item in recommend_miners(("NVIDIA",))}
     assert "XMRig" in names
     assert "BzMiner" in names
+    both = {item.name for item in recommend_miners(("NVIDIA", "AMD"))}
+    assert "lolMiner" in both
 
 
 def test_pool_config_validation():
