@@ -1,4 +1,4 @@
-"""Read-only host diagnostics. Values may be unavailable in restricted runtimes."""
+"""Read-only host diagnostics for the Marimo dashboard."""
 from __future__ import annotations
 
 import platform
@@ -33,12 +33,15 @@ def _detect_linux_gpu_vendors() -> list[str]:
 
 
 def detect_hardware() -> dict[str, Any]:
+    """Collect a small set of read-only system metrics."""
     info: dict[str, Any] = {
         "os": f"{platform.system()} {platform.release()}",
         "architecture": platform.machine() or "نامشخص",
         "cpu": platform.processor() or "نامشخص",
         "logical_cores": None,
         "ram_gb": None,
+        "ram_percent": None,
+        "cpu_percent": None,
         "gpu_vendors": _detect_linux_gpu_vendors() if platform.system() == "Linux" else [],
         "gpu_note": "تشخیص GPU در محیط‌های ابری/کانتینری یا سیستم‌عامل‌های غیرلینوکس ممکن است محدود باشد.",
         "python": platform.python_version(),
@@ -48,6 +51,8 @@ def detect_hardware() -> dict[str, Any]:
         info["logical_cores"] = psutil.cpu_count(logical=True)
         try:
             info["ram_gb"] = round(psutil.virtual_memory().total / (1024**3), 1)
+            info["ram_percent"] = psutil.virtual_memory().percent
+            info["cpu_percent"] = psutil.cpu_percent(interval=0.1)
             info["disk_free_gb"] = round(shutil.disk_usage(".").free / (1024**3), 1)
         except OSError:
             pass
