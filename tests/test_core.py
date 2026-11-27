@@ -1,28 +1,21 @@
-from src.miner_catalog import get_miner, recommend_miners
-from src.pool_config import PoolConfig, build_preview, validate_pool_config
-from src.safe_runner import execution_status
+from src.event_log import EventLog
+from src.hardware import detect_hardware
 
 
-def test_catalog_lookup_and_recommendations():
-    assert get_miner("XMRig") is not None
-    assert get_miner("not-a-miner") is None
-    names = {item.name for item in recommend_miners(("NVIDIA",))}
-    assert "XMRig" in names
-    assert "BzMiner" in names
-    both = {item.name for item in recommend_miners(("NVIDIA", "AMD"))}
-    assert "lolMiner" in both
+def test_hardware_diagnostics_are_read_only_and_have_expected_keys():
+    result = detect_hardware()
+    assert "os" in result
+    assert "architecture" in result
+    assert "gpu_vendors" in result
+    assert isinstance(result["gpu_vendors"], list)
 
 
-def test_pool_config_validation():
-    good = PoolConfig("pool.example.org", 3333, "wallet12345678", "rig-01")
-    assert validate_pool_config(good) == []
-    bad = PoolConfig("https://bad host", 70000, "x", "bad worker!")
-    assert len(validate_pool_config(bad)) >= 3
-
-
-def test_preview_is_quoted_and_not_executed():
-    config = PoolConfig("pool.example.org", 3333, "wallet12345678", "rig-01")
-    preview = build_preview(config, "XMRig")
-    assert "pool.example.org:3333" in preview
-    assert "پیش‌نمایش" in preview
-    assert execution_status()["running"] is False
+def test_event_log_is_bounded_and_formats_levels():
+    log = EventLog(max_items=2)
+    log.add("first")
+    log.add("second", "warning")
+    log.add("third")
+    lines = log.lines()
+    assert len(lines) == 2
+    assert "WARNING" in lines[0]
+    assert "third" in lines[1]
