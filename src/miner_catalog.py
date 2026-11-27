@@ -61,8 +61,11 @@ MINERS: tuple[Miner, ...] = (
 def recommend_miners(gpu_vendors: tuple[str, ...], has_cpu: bool = True) -> list[Miner]:
     """Return miners with a hardware class matching the detected host."""
     available = {"CPU"} if has_cpu else set()
-    if gpu_vendors:
-        available.add("NVIDIA GPU" if "NVIDIA" in gpu_vendors else "AMD GPU")
+    for vendor in gpu_vendors:
+        if vendor == "NVIDIA":
+            available.add("NVIDIA GPU")
+        elif vendor == "AMD":
+            available.add("AMD GPU")
     return [miner for miner in MINERS if available.intersection(miner.hardware)]
 
 
