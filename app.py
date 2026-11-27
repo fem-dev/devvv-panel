@@ -216,16 +216,15 @@ def _(
         except (TypeError, ValueError):
             validation_errors = ["پورت باید یک عدد صحیح باشد."]
             event_log.add("مقدار پورت قابل تبدیل به عدد نیست.", "ERROR")
-    else:
-        event_log.add("فرم آماده است؛ برای اعتبارسنجی آن را ارسال کنید.")
-    return event_log, preview_text, validation_errors
+    log_lines = event_log.lines()
+    return log_lines, preview_text, validation_errors
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # سلول ۷ | ترمینال نمایشی، لاگ‌ها و وضعیت اجرای کنترل‌شده
 # ─────────────────────────────────────────────────────────────────────────────
 @app.cell
-def _(execution_status, event_log, mo, preview_text, validation_errors):
+def _(execution_status, log_lines, mo, preview_text, validation_errors):
     import html
 
     status = execution_status()
