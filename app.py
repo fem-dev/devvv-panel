@@ -5,7 +5,7 @@ app = marimo.App(width="full")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# سلول ۱ | واردکردن کتابخانه‌ها و منطق پروژه
+# سلول ۱ | واردکردن کتابخانه‌ها و ساخت فضای رویدادهای نشست
 # ─────────────────────────────────────────────────────────────────────────────
 @app.cell
 def _():
@@ -16,7 +16,9 @@ def _():
     from src.event_log import EventLog
     from src.safe_runner import execution_status
 
+    event_log = EventLog()
     return (
+        event_log,
         EventLog,
         MINERS,
         PoolConfig,
@@ -73,7 +75,6 @@ def _(mo):
           background:#080e12; color:#9cebc1; border:1px solid #263d35; border-radius:14px;
           padding:16px; font:12px/1.9 ui-monospace,SFMono-Regular,Consolas,monospace;
         }
-        .section-title { direction:rtl; text-align:right; color:#dff8eb; margin:12px 0 6px; }
         </style>
         """
     )
@@ -91,7 +92,7 @@ def _(mo):
         <div class="warning"><b>حالت امن فعال است</b><br>
         این نسخه فقط اطلاعات سیستم را می‌خواند و فرمان را برای بازبینی نمایش می‌دهد.
         هیچ ماینری دانلود یا اجرا نمی‌شود و هیچ پردازشی در پس‌زمینه شروع نخواهد شد.
-        استخراج می‌تواند برق و گرمای زیادی تولید کند؛ پیش از هر استفاده‌ای محدودیت‌های دستگاه را بررسی کنید.</div>
+        استخراج می‌تواند برق و گرمای زیادی مصرف کند؛ پیش از هر استفاده‌ای محدودیت‌های دستگاه را بررسی کنید.</div>
         """
     )
     return header, safety, theme
@@ -152,7 +153,7 @@ def _(mo):
     pool_port = mo.ui.text(label="پورت", value="3333")
     wallet = mo.ui.text(label="آدرس کیف پول / شناسه", value="")
     worker = mo.ui.text(label="نام Worker", value="worker01")
-    pool_password = mo.ui.text(label="رمز استخر (اختیاری)", value="x")
+    pool_password = mo.ui.text(label="رمز استخر (اختیاری)", value="x", kind="password")
     algorithm = mo.ui.dropdown(
         options=["RandomX", "KawPow", "Autolykos", "Etchash", "Equihash"],
         value="RandomX",
@@ -175,11 +176,12 @@ def _(mo):
 # ─────────────────────────────────────────────────────────────────────────────
 @app.cell
 def _(
-    EventLog,
+    event_log,
     PoolConfig,
     algorithm,
     build_button,
     build_preview,
+    get_miner,
     miner_select,
     pool_host,
     pool_password,
@@ -188,7 +190,6 @@ def _(
     wallet,
     worker,
 ):
-    event_log = EventLog()
     preview_text = "هنوز پیش‌نمایشی ساخته نشده است."
     validation_errors = []
     if build_button.value:
@@ -202,16 +203,21 @@ def _(
                 algorithm=algorithm.value,
             )
             validation_errors = validate_pool_config(config)
+            selected_miner = get_miner(miner_select.value)
+            if selected_miner and algorithm.value not in selected_miner.algorithms:
+                validation_errors.append(
+                    f"الگوریتم {algorithm.value} در فهرست پشتیبانی {selected_miner.name} نیست."
+                )
             if validation_errors:
                 event_log.add("اعتبارسنجی تنظیمات ناموفق بود.", "WARNING")
             else:
                 preview_text = build_preview(config, miner_select.value)
-                event_log.add("تنظیمات معتبر است؛ پیش‌نمایش فرمان ساخته شد.")
+                event_log.add("تنظیمات معتبر است؛ پیش‌نمایش عمومی فرمان ساخته شد.")
         except (TypeError, ValueError):
             validation_errors = ["پورت باید یک عدد صحیح باشد."]
             event_log.add("مقدار پورت قابل تبدیل به عدد نیست.", "ERROR")
     else:
-        event_log.add("پنل آماده است؛ برای اعتبارسنجی فرم را ارسال کنید.")
+        event_log.add("فرم آماده است؛ برای اعتبارسنجی آن را ارسال کنید.")
     return event_log, preview_text, validation_errors
 
 
@@ -220,29 +226,29 @@ def _(
 # ─────────────────────────────────────────────────────────────────────────────
 @app.cell
 def _(execution_status, event_log, mo, preview_text, validation_errors):
+    import html
+
     status = execution_status()
     if validation_errors:
         validation_view = mo.md(
             "**خطاهای اعتبارسنجی:**\n" + "\n".join(f"- {item}" for item in validation_errors)
         )
     elif preview_text != "هنوز پیش‌نمایشی ساخته نشده است.":
-        validation_view = mo.md("تنظیمات معتبر هستند. فرمان زیر فقط برای بازبینی ساخته شده است.")
+        validation_view = mo.md("تنظیمات معتبر هستند. فرمان زیر فقط یک قالب عمومی برای بازبینی است.")
     else:
         validation_view = mo.md("فرم را تکمیل کنید و دکمهٔ اعتبارسنجی را بزنید.")
 
-    terminal = mo.md(
-        '<div class="terminal">$ miner-panel --status\n'
+    terminal_content = (
+        "$ miner-panel --status\n"
         f'mode: {status["mode"]}\n'
         f'running: {str(status["running"]).lower()}\n'
         f'message: {status["message"]}\n\n'
-        '$ command-preview\n'
-        f'{preview_text}</div>'
+        "$ command-preview\n"
+        f"{preview_text}"
     )
-    logs = mo.md(
-        '<div class="terminal">' +
-        "\n".join(event_log.lines()[-15:]) +
-        '</div>'
-    )
+    terminal = mo.md('<div class="terminal">' + html.escape(terminal_content) + "</div>")
+    log_content = "\n".join(event_log.lines()[-15:]) or "هنوز رویدادی ثبت نشده است."
+    logs = mo.md('<div class="terminal">' + html.escape(log_content) + "</div>")
     return logs, status, terminal, validation_view
 
 
@@ -264,6 +270,7 @@ def _(
     safety,
     status,
     terminal,
+    theme,
     validation_view,
     wallet,
     worker,
@@ -320,7 +327,7 @@ def _(
             "تنظیمات و ترمینال": setup,
         }
     )
-    mo.vstack([header, tabs])
+    mo.vstack([theme, header, tabs])
     return
 
 
